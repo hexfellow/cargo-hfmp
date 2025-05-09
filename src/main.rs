@@ -11,14 +11,19 @@ const MAGIC_WORD: u32 = 0xABCD5432;
 
 #[derive(TryFromBytes, IntoBytes, Immutable, PartialEq, KnownLayout, Copy, Clone, Debug)]
 #[repr(packed)]
-struct OTAHead {
+struct OtaHead {
+    // Always 0xABCD5432, 0b10101011110011010101010000110010
     magic_word: u32,
+    // CRC 16 (IBM SDLC) checksum of Everything that is valid after magic_word
+    crc: u16,
     version: [u8; 32],
     project_name: [u8; 16],
     timestamp: u64,
-    crc: u16,
-    size: usize,
+    // The size of the firmware in bytes, HEAD size not included
+    size: u32,
+    reserved: [u8; 446],
 }
+// static_assertions::const_assert!(core::mem::size_of::<OtaHead>() == 512);
 
 #[derive(Debug, Parser)]
 #[command(
@@ -145,21 +150,19 @@ async fn main() {
         file_bytes.push(0xFF);
     }
 
-    const X25: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC);
-    let crc = X25.checksum(&file_bytes);
-
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
         .as_secs();
 
-    let ota_head = OTAHead {
+    let ota_head = OtaHead {
         magic_word: MAGIC_WORD,
+        crc: 0,
         version,
         project_name,
         timestamp,
-        crc,
-        size: file_bytes.len(),
+        size: file_bytes.len() as u32,
+        reserved: [0; 446],
     };
     info!("OTA head: {:?}", ota_head);
     let mut ota_bytes = ota_head.as_bytes().to_vec();
@@ -176,10 +179,18 @@ async fn main() {
     let file_path = path.join(file_name);
     let mut file = File::create(file_path.clone()).unwrap();
     info!("Created ota bin file at {}", file_path.display());
-    // Write the ota head
-    file.write_all(ota_bytes.as_bytes()).unwrap();
-    // Write the file bytes
-    file.write_all(&file_bytes).unwrap();
+    let final_length = 512 + file_bytes.len();
+    let mut total_bytes = [ota_bytes, file_bytes].concat();
+    assert!(total_bytes.len() == final_length);
+    const X25: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC);
+    let crc = X25.checksum(&total_bytes.as_slice()[6..]);
+    let crc_bytes = crc.to_le_bytes();
+    // little endian
+    total_bytes[4] = crc_bytes[0];
+    total_bytes[5] = crc_bytes[1];
+
+    // Write the file
+    file.write_all(total_bytes.as_bytes()).unwrap();
     file.sync_all().unwrap();
     // Remove the temp file
     std::fs::remove_file(path.join("xstd-app-tool-temp.bin")).unwrap();
