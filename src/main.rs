@@ -88,6 +88,11 @@ async fn main() {
         .expect("Failed to execute git command")
         .stdout;
     let git_hash = std::str::from_utf8(&git_hash).expect("Failed to parse git hash");
+    // Remove all spaces, tabs, and newlines
+    let git_hash = git_hash
+        .replace(" ", "")
+        .replace("\t", "")
+        .replace("\n", "");
     info!("Git hash: {}", git_hash);
     let mut gh = git_hash.bytes().collect::<Vec<u8>>();
     if gh.len() > 31 {
@@ -168,7 +173,9 @@ async fn main() {
         value["package"]["name"].as_str().unwrap().to_string(),
         git_hash
     );
-    let mut file = File::create(path.join(file_name)).unwrap();
+    let file_path = path.join(file_name);
+    let mut file = File::create(file_path.clone()).unwrap();
+    info!("Created ota bin file at {}", file_path.display());
     // Write the ota head
     file.write_all(ota_bytes.as_bytes()).unwrap();
     // Write the file bytes
