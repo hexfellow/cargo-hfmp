@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Child, ExitStatus};
 use toml::Table;
-use zerocopy::{byte_slice, FromBytes, Immutable, IntoBytes, KnownLayout, TryFromBytes};
+use zerocopy::{Immutable, IntoBytes, KnownLayout, TryFromBytes};
 const MAGIC_WORD: u32 = 0xABCD5432;
 
 #[derive(TryFromBytes, IntoBytes, Immutable, PartialEq, KnownLayout, Copy, Clone, Debug)]
