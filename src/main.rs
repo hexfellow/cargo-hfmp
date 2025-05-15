@@ -67,15 +67,18 @@ async fn main() {
         env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
     );
 
-    if let Ok(wrap) = std::env::var("RUSTC_WRAPPER") {
-        info!("RUSTC_WRAPPER: {}", wrap);
-    }
-
     let mut args: Vec<_> = std::env::args_os().collect();
-
-    info!("Args: {:?}", args);
-
-    let args = Cli::parse();
+    let args = if args.len() >= 2 {
+        if args[1].to_str() == Some("hfmp") {
+            info!("Seem to be calling from cargo hfmp!");
+            args.remove(1);
+            Cli::parse_from(args[1..].to_vec())
+        } else {
+            Cli::parse()
+        }
+    } else {
+        Cli::parse()
+    };
     info!("Args: {:?}", args);
     let path = PathBuf::from(args.path);
     // Check if the file exists
