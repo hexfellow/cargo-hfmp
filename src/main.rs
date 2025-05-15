@@ -68,19 +68,20 @@ async fn main() {
     );
 
     let mut args: Vec<_> = std::env::args_os().collect();
+    // info!("Args: {:?}", args);
     let args = if args.len() >= 2 {
         if args[1].to_str() == Some("hfmp") {
-            info!("Seem to be calling from cargo hfmp!");
+            // info!("Seem to be calling from cargo hfmp!");
             args.remove(1);
-            info!("Args: {:?}", args);
-            Cli::parse_from(args[1..].to_vec())
+            // info!("Args: {:?}", args);
+            Cli::parse_from(args)
         } else {
             Cli::parse()
         }
     } else {
         Cli::parse()
     };
-    info!("Args: {:?}", args);
+    // info!("Args: {:?}", args);
     let path = PathBuf::from(args.path);
     // Check if the file exists
     if !path.exists() {
