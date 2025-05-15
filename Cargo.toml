@@ -1,7 +1,12 @@
 [package]
-name = "xstd-app-tool"
+name = "hf-mcu-ota-packer"
 version = "0.1.0"
 edition = "2021"
+license = "MIT OR Apache-2.0"
+keywords = ["hexfellow", "ota"]
+description = "A tool to pack plain MCU binary into hexfellow OTA format"
+repository = "https://github.com/hexfellow/hf-mcu-ota-packer"
+readme = "README.md"
 
 [dependencies]
 futures-channel = "0.3.31"

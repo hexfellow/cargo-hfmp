@@ -375,6 +375,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
+name = "hf-mcu-ota-packer"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "build-time",
+ "clap",
+ "colored",
+ "crc",
+ "ctrlc",
+ "env_logger",
+ "futures-channel",
+ "futures-util",
+ "lazy_static",
+ "log",
+ "rand",
+ "random",
+ "thiserror",
+ "tokio",
+ "toml",
+ "zerocopy",
+]
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1130,29 +1153,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f42320e61fe2cfd34354ecb597f86f413484a798ba44a8ca1165c58d42da6c1"
 dependencies = [
  "bitflags",
-]
-
-[[package]]
-name = "xstd-app-tool"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "build-time",
- "clap",
- "colored",
- "crc",
- "ctrlc",
- "env_logger",
- "futures-channel",
- "futures-util",
- "lazy_static",
- "log",
- "rand",
- "random",
- "thiserror",
- "tokio",
- "toml",
- "zerocopy",
 ]
 
 [[package]]
