@@ -30,7 +30,7 @@ struct OtaHead {
     about = "Create a OTA bin file for the given project. Run cargo build --release in target directory to build the project before running this tool."
 )]
 pub struct Cli {
-    #[arg(help = "Path to target Cargo.toml")]
+    #[arg(help = "Path to target Cargo.toml", long, short)]
     pub path: String,
 }
 
