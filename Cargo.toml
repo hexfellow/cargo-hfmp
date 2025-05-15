@@ -1,11 +1,11 @@
 [package]
-name = "hf-mcu-ota-packer"
-version = "1.0.0"
+name = "cargo-hfmp"
+version = "1.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 keywords = ["hexfellow", "ota"]
 description = "A tool to pack plain MCU binary into hexfellow OTA format"
-repository = "https://github.com/hexfellow/hf-mcu-ota-packer"
+repository = "https://github.com/hexfellow/cargo-hfmp"
 readme = "README.md"
 categories = ["development-tools::cargo-plugins"]
 
