@@ -72,6 +72,7 @@ async fn main() {
         if args[1].to_str() == Some("hfmp") {
             info!("Seem to be calling from cargo hfmp!");
             args.remove(1);
+            info!("Args: {:?}", args);
             Cli::parse_from(args[1..].to_vec())
         } else {
             Cli::parse()
