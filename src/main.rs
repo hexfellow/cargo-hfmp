@@ -155,7 +155,7 @@ async fn main() {
         .unwrap()
         .as_secs();
 
-    let ota_head = OtaHead {
+    let mut ota_head = OtaHead {
         magic_word: MAGIC_WORD,
         crc: 0,
         version,
@@ -164,7 +164,6 @@ async fn main() {
         size: file_bytes.len() as u32,
         reserved: [0; 446],
     };
-    info!("OTA head: {:?}", ota_head);
     let mut ota_bytes = ota_head.as_bytes().to_vec();
     while ota_bytes.len() < 512 {
         ota_bytes.push(0xFF);
@@ -185,10 +184,12 @@ async fn main() {
     const X25: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC);
     let crc = X25.checksum(&total_bytes.as_slice()[6..]);
     let crc_bytes = crc.to_le_bytes();
+    ota_head.crc = crc;
     // little endian
     total_bytes[4] = crc_bytes[0];
     total_bytes[5] = crc_bytes[1];
 
+    info!("OTA head: {:?}", ota_head);
     // Write the file
     file.write_all(total_bytes.as_bytes()).unwrap();
     file.sync_all().unwrap();
