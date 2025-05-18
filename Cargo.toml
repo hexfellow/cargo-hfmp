@@ -1,6 +1,6 @@
 [package]
 name = "cargo-hfmp"
-version = "1.1.0"
+version = "1.2.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 keywords = ["hexfellow", "ota"]
@@ -28,3 +28,5 @@ rand = "0.9.1"
 zerocopy = { version = "0.8.13", features = ["derive"] }
 colored = "2.1.0"
 toml = "0.8.22"
+static_assertions = "1.1.0"
+chrono = "0.4.41"

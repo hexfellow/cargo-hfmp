@@ -1,4 +1,5 @@
 use clap::Parser;
+use clap::Subcommand;
 use log::{error, info};
 use std::fs::File;
 use std::io::BufRead;
@@ -23,15 +24,30 @@ struct OtaHead {
     size: u32,
     reserved: [u8; 446],
 }
-// static_assertions::const_assert!(core::mem::size_of::<OtaHead>() == 512);
+static_assertions::const_assert!(core::mem::size_of::<OtaHead>() == 512);
+
+#[derive(Debug, Subcommand, Clone)]
+#[clap(disable_help_subcommand = true)]
+enum Commands {
+    #[command(about = "Create the ota bin file")]
+    Encode {
+        #[arg(help = "Path to project Cargo.toml's directory")]
+        path: String,
+    },
+    #[command(about = "Decode the ota bin file")]
+    Decode {
+        #[arg(help = "Path to ota bin file")]
+        path: String,
+    },
+}
 
 #[derive(Debug, Parser)]
 #[command(
     about = "Create a OTA bin file for the given project. Run cargo build --release in target directory to build the project before running this tool."
 )]
 pub struct Cli {
-    #[arg(help = "Path to target Cargo.toml", long, short)]
-    pub path: String,
+    #[command(subcommand)]
+    pub command: Commands,
 }
 
 fn run_command_live(mut cmd: Child, what: &String) -> ExitStatus {
@@ -61,28 +77,8 @@ fn run_command_live(mut cmd: Child, what: &String) -> ExitStatus {
     status
 }
 
-#[tokio::main]
-async fn main() {
-    env_logger::init_from_env(
-        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
-    );
-
-    let mut args: Vec<_> = std::env::args_os().collect();
-    // info!("Args: {:?}", args);
-    let args = if args.len() >= 2 {
-        if args[1].to_str() == Some("hfmp") {
-            // info!("Seem to be calling from cargo hfmp!");
-            args.remove(1);
-            // info!("Args: {:?}", args);
-            Cli::parse_from(args)
-        } else {
-            Cli::parse()
-        }
-    } else {
-        Cli::parse()
-    };
-    // info!("Args: {:?}", args);
-    let path = PathBuf::from(args.path);
+async fn encode(path: String) {
+    let path = PathBuf::from(path);
     // Check if the file exists
     if !path.exists() {
         error!("File does not exist: {}", path.display());
@@ -107,11 +103,23 @@ async fn main() {
         .expect("Failed to execute git command")
         .stdout;
     let git_hash = std::str::from_utf8(&git_hash).expect("Failed to parse git hash");
+    let git_is_dirty = std::process::Command::new("git")
+        .args(&["status", "--porcelain"])
+        .current_dir(path.clone())
+        .output()
+        .expect("Failed to execute git command")
+        .status
+        .success();
     // Remove all spaces, tabs, and newlines
     let git_hash = git_hash
         .replace(" ", "")
         .replace("\t", "")
         .replace("\n", "");
+    let git_hash = if git_is_dirty {
+        format!("{}-dirty", git_hash)
+    } else {
+        git_hash.to_string()
+    };
     info!("Git hash: {}", git_hash);
     let mut gh = git_hash.bytes().collect::<Vec<u8>>();
     if gh.len() > 31 {
@@ -124,7 +132,21 @@ async fn main() {
     let value = toml::from_str::<Table>(&file).unwrap();
     let project_name = value["package"]["name"].as_str().unwrap().to_string();
     info!("Project name: {}", project_name);
-    // arm-none-eabi-objcopy -I elf32-littlearm  -O binary ./target/thumbv7em-none-eabihf/release/stm-bootloader a.bin
+
+    // Check if target/thumbv7em-none-eabihf/release/{project_name} exists
+    let bin_path = path
+        .join("target/thumbv7em-none-eabihf/release")
+        .join(project_name.clone());
+    if !bin_path.exists() {
+        error!(
+            "Bin file does not exist: {}. Did you run cargo build --release first?",
+            bin_path.display()
+        );
+        return;
+    }
+
+    // todo Check if arm-none-eabi-objcopy is installed, if not hint the user to install it
+
     let cmd = std::process::Command::new("arm-none-eabi-objcopy")
         .arg("-I")
         .arg("elf32-littlearm")
@@ -159,7 +181,8 @@ async fn main() {
     let mut file_bytes = tokio::fs::read(path.join("xstd-app-tool-temp.bin"))
         .await
         .unwrap();
-    // Fill the file to the nearest 8 bytes
+    // Fill the file to the nearest 8 bytes.
+    // This is important!
     while file_bytes.len() % 8 != 0 {
         file_bytes.push(0xFF);
     }
@@ -209,4 +232,77 @@ async fn main() {
     file.sync_all().unwrap();
     // Remove the temp file
     std::fs::remove_file(path.join("xstd-app-tool-temp.bin")).unwrap();
+}
+
+async fn decode(path: String) {
+    let path = PathBuf::from(path);
+    let file_bytes = tokio::fs::read(path).await.expect("Failed to read file");
+    if file_bytes.len() < 512 {
+        error!("File is too short to be an ota bin file");
+        std::process::exit(1);
+    }
+    let ota_head_bytes = &file_bytes[0..512];
+    let ota_head = match OtaHead::try_read_from_bytes(ota_head_bytes) {
+        Ok(ota_head) => ota_head,
+        Err(e) => {
+            error!("Invalid ota head {}", e);
+            std::process::exit(1);
+        }
+    };
+    if ota_head.magic_word != 0xABCD5432 {
+        error!("Invalid magic word");
+        std::process::exit(1);
+    }
+    const X25: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC);
+    let crc = X25.checksum(&file_bytes[6..]);
+    let expected_crc = ota_head.crc;
+    if crc != expected_crc {
+        error!(
+            "CRC mismatch, expected 0x{:X}, got 0x{:X}",
+            expected_crc, crc
+        );
+        std::process::exit(1);
+    }
+    let build_time =
+        match chrono::DateTime::<chrono::Utc>::from_timestamp(ota_head.timestamp as i64, 0) {
+            Some(t) => t.to_rfc3339(),
+            None => "Unknown".to_string(),
+        };
+    let firmware_size = ota_head.size;
+    info!(
+        "Valid Bin File!:\n  Project Name: {}\n  Version: {}\n  Created at: {}\n  Firmware Size: {}B ({:.2}KB)",
+        String::from_utf8_lossy(&ota_head.project_name),
+        String::from_utf8_lossy(&ota_head.version),
+        build_time,
+        firmware_size,
+        firmware_size as f32 / 1024.0
+    );
+}
+
+#[tokio::main]
+async fn main() {
+    env_logger::init_from_env(
+        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
+    );
+
+    let mut args: Vec<_> = std::env::args_os().collect();
+    // info!("Args: {:?}", args);
+    let args = if args.len() >= 2 {
+        if args[1].to_str() == Some("hfmp") {
+            // info!("Seem to be calling from cargo hfmp!");
+            args.remove(1);
+            // info!("Args: {:?}", args);
+            Cli::parse_from(args)
+        } else {
+            Cli::parse()
+        }
+    } else {
+        Cli::parse()
+    };
+    // info!("Args: {:?}", args);
+    let cmd = args.command;
+    match cmd {
+        Commands::Encode { path } => encode(path).await,
+        Commands::Decode { path } => decode(path).await,
+    }
 }
