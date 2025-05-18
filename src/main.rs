@@ -108,8 +108,9 @@ async fn encode(path: String) {
         .current_dir(path.clone())
         .output()
         .expect("Failed to execute git command")
-        .status
-        .success();
+        .stdout;
+    // info!("git_is_dirty std out: {:?}", git_is_dirty);
+    let git_is_dirty = git_is_dirty.len() > 0;
     // Remove all spaces, tabs, and newlines
     let git_hash = git_hash
         .replace(" ", "")
