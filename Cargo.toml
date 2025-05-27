@@ -1,6 +1,6 @@
 [package]
 name = "cargo-hfmp"
-version = "1.2.1"
+version = "1.3.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 keywords = ["hexfellow", "ota"]
