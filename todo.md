@@ -1,0 +1,1 @@
+1. Stop manully making stuff! Use cargo_metadata to get file path, etc.

@@ -96,31 +96,58 @@ async fn encode(path: String) {
         std::process::exit(1);
     }
 
-    let git_hash = std::process::Command::new("git")
-        .args(&["rev-parse", "--short", "HEAD"])
-        .current_dir(path.clone())
+    // Find hex_metadata.rs in target/thumbv7em-none-eabihf/release
+    // find path/target/thumbv7em-none-eabihf/release -name hex_metadata.rs
+    info!("Path: {}", path.display());
+    let find_path = path.join("target/thumbv7em-none-eabihf/release");
+    info!("Find path: {}", find_path.display());
+    let cmd = std::process::Command::new("find")
+        .arg(find_path.as_path())
+        .arg("-name")
+        .arg("hex_metadata.rs")
         .output()
-        .expect("Failed to execute git command")
-        .stdout;
-    let git_hash = std::str::from_utf8(&git_hash).expect("Failed to parse git hash");
-    let git_is_dirty = std::process::Command::new("git")
-        .args(&["status", "--porcelain"])
-        .current_dir(path.clone())
-        .output()
-        .expect("Failed to execute git command")
-        .stdout;
-    // info!("git_is_dirty std out: {:?}", git_is_dirty);
-    let git_is_dirty = git_is_dirty.len() > 0;
-    // Remove all spaces, tabs, and newlines
-    let git_hash = git_hash
-        .replace(" ", "")
-        .replace("\t", "")
-        .replace("\n", "");
-    let git_hash = if git_is_dirty {
-        format!("{}-dirty", git_hash)
-    } else {
-        git_hash.to_string()
-    };
+        .expect("Failed to execute find command");
+    let hex_metadata_path = String::from_utf8(cmd.stdout).unwrap().trim().to_string();
+
+    let hex_metadata_path = PathBuf::from(hex_metadata_path);
+    // Check if hex_metadata_path is a file
+    if hex_metadata_path.try_exists().is_err() {
+        error!("hex_metadata.rs does not exist, did you run cargo build --release first?");
+        std::process::exit(1);
+    }
+    // Read the file, the file looks like this:
+    // pub const BUILD_TIME: u64 = 1748311081;
+    // pub const GIT_HASH: &str = "4094491-dirty";
+
+    info!(
+        "Reading hex_metadata.rs from {}",
+        hex_metadata_path.display()
+    );
+    // println!("{}", std::env::current_dir().unwrap().display());
+    let hex_metadata_bytes = std::fs::read(hex_metadata_path).unwrap();
+    let hex_metadata: String = String::from_utf8(hex_metadata_bytes).unwrap();
+    // info!("Hex metadata: {}", hex_metadata);
+    let build_time = hex_metadata
+        .split("BUILD_TIME: u64 = ")
+        .last()
+        .unwrap()
+        .split(";")
+        .next()
+        .unwrap()
+        .to_string();
+    // Parse the build_time to u64
+    let build_time = build_time.parse::<u64>().unwrap();
+    let git_hash = hex_metadata
+        .split("GIT_HASH: &str = ")
+        .last()
+        .unwrap()
+        .split(";")
+        .next()
+        .unwrap()
+        .to_string();
+    // Remove quotes in git_hash
+    let git_hash = git_hash.replace("\"", "");
+    info!("Build time: {}", build_time);
     info!("Git hash: {}", git_hash);
     let mut gh = git_hash.bytes().collect::<Vec<u8>>();
     if gh.len() > 31 {
